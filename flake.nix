@@ -33,7 +33,7 @@
             # Nix requires the vendor hash to guarantee reproducibility.
             # Leave this as fakeHash for the first build. It will fail and
             # give you the real hash, which you will paste here.
-            vendorHash = pkgs.lib.fakeHash;
+            vendorHash = "sha256-QFiBVIaI+xXKyXpQqLwPgYc051TbUjcboQUPEkI9sqE=";
 
             meta = with pkgs.lib; {
               description = "OpenBao Secrets Engine for Nebula PKI";
