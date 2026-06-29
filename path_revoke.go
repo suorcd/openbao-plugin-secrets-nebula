@@ -30,10 +30,6 @@ func buildPathRevoke(b *backend) *framework.Path {
 		Operations: map[logical.Operation]framework.OperationHandler{
 			logical.UpdateOperation: &framework.PathOperation{
 				Callback: b.pathRevokeCert,
-				// This should never be forwarded. See backend.go for more information.
-				// If this needs to write, the entire request will be forwarded to the
-				// active node of the current performance cluster, but we don't want to
-				// forward invalid revoke requests there.
 				Responses: map[int][]framework.Response{
 					http.StatusOK: {{
 						Description: "OK",
@@ -107,11 +103,12 @@ func (b *backend) pathRevokeCert(ctx context.Context, req *logical.Request, data
 		return nil, fmt.Errorf("Certificate not found")
 	}
 
-	var nc cert.NebulaCertificate
-	storageEntry.DecodeJSON(&nc)
+	var cse CertStorageEntry
+	storageEntry.DecodeJSON(&cse)
+	nc, _ := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
 
-	if nc.Details.NotAfter.Before(time.Now()) {
-		return nil, fmt.Errorf("certificate already expired at " + nc.Details.NotAfter.Format("02.01.2006 15:04:05"))
+	if nc.NotAfter().Before(time.Now()) {
+		return nil, fmt.Errorf("certificate already expired at " + nc.NotAfter().Format("02.01.2006 15:04:05"))
 	}
 
 	revocationDetails := RevocationDetails{Fingerprint: cleanFingerprint, RevokedAt: time.Now()}
@@ -126,17 +123,17 @@ func (b *backend) pathRevokeCert(ctx context.Context, req *logical.Request, data
 		return nil, err
 	}
 
-	pemCert, err := nc.MarshalToPEM()
+	pemCert, err := nc.MarshalPEM()
 
 	var ipNetStrings []string
-	for _, ipNet := range nc.Details.Ips {
+	for _, ipNet := range nc.Networks() {
 		ipNetStrings = append(ipNetStrings, ipNet.String())
 	}
 
 	resp := &logical.Response{
 		Data: map[string]interface{}{
-			"notAfter":                nc.Details.NotAfter.Format("02.01.2006 15:04:05"),
-			"name":                    nc.Details.Name,
+			"notAfter":                nc.NotAfter().Format("02.01.2006 15:04:05"),
+			"name":                    nc.Name(),
 			"ip":                      strings.Join(ipNetStrings, ", "),
 			"cert":                    string(pemCert),
 			"fingerprint":             fingerprint, // is already formatted

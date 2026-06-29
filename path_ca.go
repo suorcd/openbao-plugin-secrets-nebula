@@ -103,13 +103,18 @@ func (b *backend) pathGenerateCA(ctx context.Context, req *logical.Request, data
 	}
 
 	if currentCACertEntry != nil {
-		var currentCA cert.NebulaCertificate
-		if err := currentCACertEntry.DecodeJSON(&currentCA); err != nil {
-			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to decode current CA: %v", err)}
+		var cse CertStorageEntry
+		if err := currentCACertEntry.DecodeJSON(&cse); err != nil {
+			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to decode current CA entry: %v", err)}
+		}
+
+		currentCA, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
+		if err != nil {
+			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to parse current CA PEM: %v", err)}
 		}
 
 		// Check if current CA is expired
-		isExpired := time.Now().After(currentCA.Details.NotAfter)
+		isExpired := time.Now().After(currentCA.NotAfter())
 
 		if !isExpired && !rotate {
 			return nil, fmt.Errorf("a valid CA certificate already exists; use rotate=true to force rotation")
@@ -131,17 +136,17 @@ func (b *backend) pathGenerateCA(ctx context.Context, req *logical.Request, data
 		}
 
 		// Convert CA to PEM for storage
-		pemCert, err := currentCA.MarshalToPEM()
+		pemCert, err := currentCA.MarshalPEM()
 		if err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to marshal old CA to PEM: %v", err)}
 		}
 
 		// Store old CA as a map to match our read format
 		oldCAData := map[string]interface{}{
-			"name":       currentCA.Details.Name,
+			"name":       currentCA.Name(),
 			"public_key": string(pemCert),
-			"not_before": currentCA.Details.NotBefore.Format("2006-01-02 15:04:05"),
-			"not_after":  currentCA.Details.NotAfter.Format("2006-01-02 15:04:05"),
+			"not_before": currentCA.NotBefore().Format("2006-01-02 15:04:05"),
+			"not_after":  currentCA.NotAfter().Format("2006-01-02 15:04:05"),
 		}
 
 		// Move current CA and key to old CA
@@ -191,22 +196,30 @@ func (b *backend) pathGenerateCA(ctx context.Context, req *logical.Request, data
 		return nil, err
 	}
 
-	nc := cert.NebulaCertificate{
-		Details: cert.NebulaCertificateDetails{
-			Name:      name,
-			Groups:    _groups,
-			Ips:       _ips,
-			Subnets:   _subnets,
-			NotBefore: time.Now(),
-			NotAfter:  time.Now().Add(_duration),
-			PublicKey: publicKey,
-			IsCA:      true,
-		},
+	// Build the To-Be-Signed Certificate using V2 Engine
+	tbs := cert.TBSCertificate{
+		Version:        cert.Version2,
+		Name:           name,
+		Groups:         _groups,
+		Networks:       _ips,
+		UnsafeNetworks: _subnets,
+		NotBefore:      time.Now(),
+		NotAfter:       time.Now().Add(_duration),
+		PublicKey:      publicKey,
+		IsCA:           true,
 	}
 
-	nc.Sign(privateKey)
+	nc, err := tbs.Sign(nil, cert.Curve_CURVE25519, privateKey)
+	if err != nil {
+		return nil, errutil.InternalError{Err: fmt.Sprintf("Failed to sign CA: %v", err)}
+	}
 
-	err = saveCertificateEntry(ctx, req, "ca", nc)
+	pemCert, err := nc.MarshalPEM()
+	if err != nil {
+		return nil, err
+	}
+
+	err = saveCertificateEntry(ctx, req, "ca", CertStorageEntry{Pem: string(pemCert)})
 	if err != nil {
 		return nil, err
 	}
@@ -216,35 +229,27 @@ func (b *backend) pathGenerateCA(ctx context.Context, req *logical.Request, data
 		return nil, err
 	}
 
-	pemCert, err := nc.MarshalToPEM()
-	if err != nil {
-		return nil, err
-	}
-
-	fingerprint, err := nc.Sha256Sum()
-	if err != nil {
-		return nil, err
-	}
+	fingerprint := nc.Fingerprint()
 
 	var formattedIPs []string
-	for _, ipNet := range nc.Details.Ips {
+	for _, ipNet := range nc.Networks() {
 		formattedIPs = append(formattedIPs, ipNet.String())
 	}
 
 	var formattedSubnets []string
-	for _, subnet := range nc.Details.Subnets {
+	for _, subnet := range nc.UnsafeNetworks() {
 		formattedSubnets = append(formattedSubnets, subnet.String())
 	}
 
 	resp := &logical.Response{
 		Data: map[string]interface{}{
-			"name":        nc.Details.Name,
-			"fingerprint": formatFingerprint(fingerprint),
-			"groups":      strings.Join(nc.Details.Groups, ", "),
+			"name":        nc.Name(),
+			"fingerprint": formatFingerprint(fmt.Sprintf("%x", fingerprint)),
+			"groups":      strings.Join(nc.Groups(), ", "),
 			"ips":         strings.Join(formattedIPs, ", "),
 			"subnets":     strings.Join(formattedSubnets, ", "),
-			"notBefore":   nc.Details.NotBefore.Format("2006-01-02 15:04:05"),
-			"notAfter":    nc.Details.NotAfter.Format("2006-01-02 15:04:05"),
+			"notBefore":   nc.NotBefore().Format("2006-01-02 15:04:05"),
+			"notAfter":    nc.NotAfter().Format("2006-01-02 15:04:05"),
 			"cert":        string(pemCert),
 		},
 	}
@@ -275,33 +280,33 @@ func (b *backend) pathConfigCAUpdate(ctx context.Context, req *logical.Request, 
 			return nil, errutil.InternalError{Err: "no CA key found"}
 		}
 
-		// Decode current CA to store it properly
-		var currentCA cert.NebulaCertificate
-		if err := currentCACertEntry.DecodeJSON(&currentCA); err != nil {
+		var cse CertStorageEntry
+		if err := currentCACertEntry.DecodeJSON(&cse); err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to decode current CA for backup: %v", err)}
 		}
 
-		// Decode current CA key to store it properly
+		currentCA, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
+		if err != nil {
+			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to parse current CA PEM: %v", err)}
+		}
+
 		var currentKey ed25519.PrivateKey
 		if err := currentCAKeyEntry.DecodeJSON(&currentKey); err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to decode current CA key for backup: %v", err)}
 		}
 
-		// Convert CA to PEM for storage
-		pemCert, err := currentCA.MarshalToPEM()
+		pemCert, err := currentCA.MarshalPEM()
 		if err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to marshal old CA to PEM: %v", err)}
 		}
 
-		// Store old CA as a map to match our read format
 		oldCAData := map[string]interface{}{
-			"name":       currentCA.Details.Name,
+			"name":       currentCA.Name(),
 			"public_key": string(pemCert),
-			"not_before": currentCA.Details.NotBefore.Format("2006-01-02 15:04:05"),
-			"not_after":  currentCA.Details.NotAfter.Format("2006-01-02 15:04:05"),
+			"not_before": currentCA.NotBefore().Format("2006-01-02 15:04:05"),
+			"not_after":  currentCA.NotAfter().Format("2006-01-02 15:04:05"),
 		}
 
-		// Move current CA and key to old CA
 		err = saveCertificateEntry(ctx, req, "ca_old", oldCAData)
 		if err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to save old CA: %v", err)}
@@ -312,7 +317,6 @@ func (b *backend) pathConfigCAUpdate(ctx context.Context, req *logical.Request, 
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to save old CA key: %v", err)}
 		}
 
-		// Delete current CA entries as they will be replaced
 		if err := req.Storage.Delete(ctx, "ca"); err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("error deleting current CA: %v", err)}
 		}
@@ -321,7 +325,6 @@ func (b *backend) pathConfigCAUpdate(ctx context.Context, req *logical.Request, 
 		}
 	}
 
-	// If we're not rotating or we're rotating with a new PEM bundle
 	if hasPemBundle {
 		pemBundle := rawPemBundle.(string)
 
@@ -333,24 +336,26 @@ func (b *backend) pathConfigCAUpdate(ctx context.Context, req *logical.Request, 
 			return logical.ErrorResponse("provided data for import was too short; perhaps a path was passed to the API rather than the contents of a PEM file"), nil
 		}
 
-		var privateKey ed25519.PrivateKey
-
-		privateKey, rest, err := cert.UnmarshalEd25519PrivateKey([]byte(pemBundle))
+		_, privateKey, rest, err := cert.UnmarshalSigningPrivateKeyFromPEM([]byte(pemBundle))
 		if err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to decode Certificate Key: %v", err)}
 		}
 
-		nc, _, err := cert.UnmarshalNebulaCertificateFromPEM(rest)
+		nc, err := cert.UnmarshalCertificateFromPEM(rest)
 		if err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to decode Certificate: %v", err)}
 		}
 
-		if !nc.Details.IsCA {
+		if !nc.IsCA() {
 			return nil, errutil.InternalError{Err: "Certificate is not a Nebula CA"}
 		}
 
-		// Save new CA and key
-		err = saveCertificateEntry(ctx, req, "ca", nc)
+		pemCert, err := nc.MarshalPEM()
+		if err != nil {
+			return nil, err
+		}
+
+		err = saveCertificateEntry(ctx, req, "ca", CertStorageEntry{Pem: string(pemCert)})
 		if err != nil {
 			return nil, err
 		}
@@ -360,14 +365,9 @@ func (b *backend) pathConfigCAUpdate(ctx context.Context, req *logical.Request, 
 			return nil, err
 		}
 
-		pemCert, err := nc.MarshalToPEM()
-		if err != nil {
-			return nil, err
-		}
-
 		resp := &logical.Response{
 			Data: map[string]interface{}{
-				"name": nc.Details.Name,
+				"name": nc.Name(),
 				"cert": string(pemCert),
 			},
 		}
@@ -375,12 +375,10 @@ func (b *backend) pathConfigCAUpdate(ctx context.Context, req *logical.Request, 
 		return resp, nil
 	}
 
-	// If we're rotating without a new PEM bundle, return an error
 	if rotate && !hasPemBundle {
 		return logical.ErrorResponse("rotation requires either a new PEM bundle or using the generate/ca endpoint"), nil
 	}
 
-	// If we're not rotating and don't have a PEM bundle, check if CA exists
 	currentCACertEntry, err := req.Storage.Get(ctx, "ca")
 	if err != nil {
 		return nil, errutil.InternalError{Err: fmt.Sprintf("unable to check for existing CA: %v", err)}
@@ -390,11 +388,9 @@ func (b *backend) pathConfigCAUpdate(ctx context.Context, req *logical.Request, 
 	}
 
 	return logical.ErrorResponse("'pem_bundle' not provided"), nil
-
 }
 
 func (b *backend) pathConfigCARead(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	// Get current CA
 	currentCACertEntry, err := req.Storage.Get(ctx, "ca")
 	if err != nil {
 		return nil, errutil.InternalError{Err: fmt.Sprintf("unable to fetch current nebula ca: %v", err)}
@@ -403,17 +399,21 @@ func (b *backend) pathConfigCARead(ctx context.Context, req *logical.Request, da
 		return nil, errutil.InternalError{Err: "no CA certificate configured"}
 	}
 
-	var currentCA cert.NebulaCertificate
-	if err := currentCACertEntry.DecodeJSON(&currentCA); err != nil {
+	var cse CertStorageEntry
+	if err := currentCACertEntry.DecodeJSON(&cse); err != nil {
 		return nil, errutil.InternalError{Err: fmt.Sprintf("unable to decode current Nebula Certificate: %v", err)}
 	}
 
-	currentPEMCert, err := currentCA.MarshalToPEM()
+	currentCA, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
+	if err != nil {
+		return nil, errutil.InternalError{Err: fmt.Sprintf("unable to parse Nebula Certificate PEM: %v", err)}
+	}
+
+	currentPEMCert, err := currentCA.MarshalPEM()
 	if err != nil {
 		return nil, errutil.InternalError{Err: fmt.Sprintf("unable to marshal current CA to PEM: %v", err)}
 	}
 
-	// Get old CA if it exists
 	oldCACertEntry, err := req.Storage.Get(ctx, "ca_old")
 	if err != nil {
 		return nil, errutil.InternalError{Err: fmt.Sprintf("unable to fetch old nebula ca: %v", err)}
@@ -421,14 +421,13 @@ func (b *backend) pathConfigCARead(ctx context.Context, req *logical.Request, da
 
 	resp := &logical.Response{
 		Data: map[string]interface{}{
-			"name":       currentCA.Details.Name,
+			"name":       currentCA.Name(),
 			"public_key": string(currentPEMCert),
-			"not_before": currentCA.Details.NotBefore.Format("2006-01-02 15:04:05"),
-			"not_after":  currentCA.Details.NotAfter.Format("2006-01-02 15:04:05"),
+			"not_before": currentCA.NotBefore().Format("2006-01-02 15:04:05"),
+			"not_after":  currentCA.NotAfter().Format("2006-01-02 15:04:05"),
 		},
 	}
 
-	// Add old CA to response if it exists
 	if oldCACertEntry != nil {
 		var oldCAData map[string]interface{}
 		if err := oldCACertEntry.DecodeJSON(&oldCAData); err != nil {

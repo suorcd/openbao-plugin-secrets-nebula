@@ -6,7 +6,7 @@ require (
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/openbao/openbao/api/v2 v2.1.0
 	github.com/openbao/openbao/sdk/v2 v2.1.0
-	github.com/slackhq/nebula v1.3.0
+	github.com/slackhq/nebula v1.9.3
 	golang.org/x/crypto v0.29.0
 )
 

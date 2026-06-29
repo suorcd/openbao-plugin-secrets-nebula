@@ -2,9 +2,16 @@ package nebula
 
 import (
 	"fmt"
-	"net"
+	"net/netip"
 	"strings"
 )
+
+// CertStorageEntry allows us to store the PEM string natively, bypassing
+// the fact that Nebula V2 certificates are interfaces and cannot be directly
+// serialized to JSON.
+type CertStorageEntry struct {
+	Pem string `json:"pem"`
+}
 
 func formatFingerprint(s string) string {
 	var result strings.Builder
@@ -20,16 +27,16 @@ func formatFingerprint(s string) string {
 	return result.String()
 }
 
-func parseCIDRList(input string) ([]*net.IPNet, error) {
-	var ipNets []*net.IPNet
+func parseCIDRList(input string) ([]netip.Prefix, error) {
+	var ipNets []netip.Prefix
 	for _, rs := range strings.Split(input, ",") {
 		rs = strings.Trim(rs, " ")
 		if rs != "" {
-			_, ipNet, err := net.ParseCIDR(rs)
+			prefix, err := netip.ParsePrefix(rs)
 			if err != nil {
 				return nil, fmt.Errorf("invalid CIDR definition: %s", err)
 			}
-			ipNets = append(ipNets, ipNet)
+			ipNets = append(ipNets, prefix)
 		}
 	}
 	return ipNets, nil

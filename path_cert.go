@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"net"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -46,11 +46,12 @@ func (b *backend) pathCertList(ctx context.Context, req *logical.Request, _ *fra
 	}
 
 	caStorageEntry, err := req.Storage.Get(ctx, "ca")
-	var nc cert.NebulaCertificate
-	caStorageEntry.DecodeJSON(&nc)
+	var cse CertStorageEntry
+	caStorageEntry.DecodeJSON(&cse)
+	nc, _ := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
 
-	fingerprint, err := nc.Sha256Sum()
-	entries = append(entries, formatFingerprint(fingerprint))
+	fingerprint := nc.Fingerprint()
+	entries = append(entries, formatFingerprint(fmt.Sprintf("%x", fingerprint)))
 
 	return logical.ListResponse(entries), nil
 }
@@ -94,20 +95,21 @@ func (b *backend) pathReadCert(ctx context.Context, req *logical.Request, data *
 		return nil, fmt.Errorf("Certificate not found")
 	}
 
-	var nc cert.NebulaCertificate
-	storageEntry.DecodeJSON(&nc)
+	var cse CertStorageEntry
+	storageEntry.DecodeJSON(&cse)
+	nc, _ := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
 
-	pemCert, err := nc.MarshalToPEM()
+	pemCert, err := nc.MarshalPEM()
 
 	var ipNetStrings []string
-	for _, ipNet := range nc.Details.Ips {
+	for _, ipNet := range nc.Networks() {
 		ipNetStrings = append(ipNetStrings, ipNet.String())
 	}
 
 	resp := &logical.Response{
 		Data: map[string]interface{}{
-			"notAfter":    nc.Details.NotAfter.Format("02.01.2006 15:04:05"),
-			"name":        nc.Details.Name,
+			"notAfter":    nc.NotAfter().Format("02.01.2006 15:04:05"),
+			"name":        nc.Name(),
 			"ip":          strings.Join(ipNetStrings, ", "),
 			"cert":        string(pemCert),
 			"fingerprint": formatFingerprint(fingerprint),
@@ -117,16 +119,12 @@ func (b *backend) pathReadCert(ctx context.Context, req *logical.Request, data *
 	revokedStorageEntry, err := req.Storage.Get(ctx, "revoked/"+cleanFingerprint)
 	if err == nil && revokedStorageEntry != nil {
 		var revocationDetails RevocationDetails
-		// Decode the JSON data into the struct
 		err = revokedStorageEntry.DecodeJSON(&revocationDetails)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode revocation details: %v", err)
 		}
 
-		// Adding revocation time in Unix format
 		resp.Data["revocation_time"] = revocationDetails.RevokedAt.Unix()
-
-		// Adding revocation time in RFC3339 format
 		resp.Data["revocation_time_rfc3339"] = revocationDetails.RevokedAt.Format(time.RFC3339)
 	}
 
@@ -187,9 +185,14 @@ func (b *backend) pathSign(ctx context.Context, req *logical.Request, data *fram
 		return nil, errutil.InternalError{Err: fmt.Sprintf("unable to fetch nebula ca: %v", err)}
 	}
 
-	var caCert cert.NebulaCertificate
-	if err := nebulaCACertEntry.DecodeJSON(&caCert); err != nil {
+	var cse CertStorageEntry
+	if err := nebulaCACertEntry.DecodeJSON(&cse); err != nil {
 		return nil, errutil.InternalError{Err: fmt.Sprintf("unable to decode Nebula Certificate: %v", err)}
+	}
+
+	caCert, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
+	if err != nil {
+		return nil, errutil.InternalError{Err: fmt.Sprintf("unable to parse Nebula Certificate PEM: %v", err)}
 	}
 
 	name := data.Get("name").(string)
@@ -204,7 +207,7 @@ func (b *backend) pathSign(ctx context.Context, req *logical.Request, data *fram
 
 	var _duration time.Duration
 	if !durationOk {
-		_duration = time.Until(caCert.Details.NotAfter) - time.Second*1
+		_duration = time.Until(caCert.NotAfter()) - time.Second*1
 	} else {
 		_duration, err = time.ParseDuration(duration.(string))
 		if err != nil {
@@ -213,67 +216,64 @@ func (b *backend) pathSign(ctx context.Context, req *logical.Request, data *fram
 	}
 
 	ip := data.Get("ip").(string)
-	var _ip []*net.IPNet
+	var _ip []netip.Prefix
 	if ip != "" {
 		rs := strings.Trim(ip, " ")
 		if rs != "" {
-			ip, ipNet, err := net.ParseCIDR(rs)
+			prefix, err := netip.ParsePrefix(rs)
 			if err != nil {
 				return nil, fmt.Errorf("invalid ip definition: %s", err)
 			}
-			ipNet.IP = ip
-			_ip = append(_ip, ipNet)
+			_ip = append(_ip, prefix)
 		}
-
 	}
 
 	subnets := data.Get("subnets").(string)
-	var _subnets []*net.IPNet
+	var _subnets []netip.Prefix
 	if subnets != "" {
 		for _, rs := range strings.Split(subnets, ",") {
 			rs := strings.Trim(rs, " ")
 			if rs != "" {
-				_, s, err := net.ParseCIDR(rs)
+				prefix, err := netip.ParsePrefix(rs)
 				if err != nil {
 					return nil, fmt.Errorf("invalid subnet definition: %s", err)
 				}
-				_subnets = append(_subnets, s)
+				_subnets = append(_subnets, prefix)
 			}
 		}
 	}
 
 	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
-
 	if err != nil {
 		return nil, errutil.InternalError{Err: fmt.Sprintf("Failed to generate keypair: %v", err)}
 	}
 
-	issuer, _ := caCert.Sha256Sum()
+	issuer := caCert.Fingerprint()
 
-	newCertificate := cert.NebulaCertificate{
-		Details: cert.NebulaCertificateDetails{
-			Name:      name,
-			Groups:    _groups,
-			Ips:       _ip,
-			Subnets:   _subnets,
-			NotBefore: time.Now(),
-			NotAfter:  time.Now().Add(_duration),
-			PublicKey: publicKey,
-			Issuer:    issuer,
-			IsCA:      false,
-		},
+	// V2 format requires defining via TBSCertificate
+	tbs := cert.TBSCertificate{
+		Version:        cert.Version2,
+		Name:           name,
+		Groups:         _groups,
+		Networks:       _ip,
+		UnsafeNetworks: _subnets,
+		NotBefore:      time.Now(),
+		NotAfter:       time.Now().Add(_duration),
+		PublicKey:      publicKey,
+		Issuer:         issuer,
+		IsCA:           false,
 	}
 
-	err = newCertificate.Sign(caPrivateKey)
-
+	newCertificate, err := tbs.Sign(caCert, cert.Curve_CURVE25519, caPrivateKey)
 	if err != nil {
 		return nil, errutil.InternalError{Err: fmt.Sprintf("failed to sign certificate: %v", err)}
 	}
 
-	pemCert, _ := newCertificate.MarshalToPEM()
-	fingerprint, _ := newCertificate.Sha256Sum()
+	pemCert, _ := newCertificate.MarshalPEM()
+	fingerprint := newCertificate.Fingerprint()
+	fingerprintHex := fmt.Sprintf("%x", fingerprint)
 
-	entry, err := logical.StorageEntryJSON("certs/"+fingerprint, newCertificate)
+	entry, err := logical.StorageEntryJSON("certs/"+fingerprintHex, CertStorageEntry{Pem: string(pemCert)})
 	if err != nil {
 		return nil, err
 	}
@@ -286,10 +286,10 @@ func (b *backend) pathSign(ctx context.Context, req *logical.Request, data *fram
 	resp := &logical.Response{
 		Data: map[string]interface{}{
 			"notAfter":    time.Now().Add(_duration).Format("02.01.2006 15:04:05"),
-			"name":        newCertificate.Details.Name,
+			"name":        newCertificate.Name(),
 			"cert":        string(pemCert),
-			"private_key": string(cert.MarshalEd25519PrivateKey(privateKey)),
-			"fingerprint": formatFingerprint(fingerprint),
+			"private_key": string(cert.MarshalPrivateKeyToPEM(cert.Curve_CURVE25519, privateKey)),
+			"fingerprint": formatFingerprint(fingerprintHex),
 		},
 	}
 

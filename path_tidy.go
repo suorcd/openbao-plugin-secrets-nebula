@@ -196,7 +196,6 @@ func (b *backend) pathTidyWrite(ctx context.Context, req *logical.Request, data 
 		return logical.ErrorResponse("No work to do: specify one or more tidy operations"), nil
 	}
 
-	// Get the current status and check if tidy is already running
 	b.tidyStatusLock.RLock()
 	if b.tidyStatus.State == "Running" {
 		b.tidyStatusLock.RUnlock()
@@ -204,7 +203,6 @@ func (b *backend) pathTidyWrite(ctx context.Context, req *logical.Request, data 
 	}
 	b.tidyStatusLock.RUnlock()
 
-	// Set up the tidy status
 	b.tidyStatusLock.Lock()
 	b.tidyStatus = TidyStatus{
 		SafetyBuffer:     time.Duration(safetyBuffer) * time.Second,
@@ -216,7 +214,6 @@ func (b *backend) pathTidyWrite(ctx context.Context, req *logical.Request, data 
 	}
 	b.tidyStatusLock.Unlock()
 
-	// Run the tidy operation in the background
 	go b.doTidyOperation(context.Background(), req, &b.tidyStatus)
 
 	resp := &logical.Response{}
@@ -269,7 +266,6 @@ func (b *backend) pathConfigAutoTidyRead(ctx context.Context, req *logical.Reque
 		return nil, err
 	}
 
-	// Return default configuration if not set
 	if entry == nil {
 		return &logical.Response{
 			Data: map[string]interface{}{
@@ -321,7 +317,6 @@ func (b *backend) pathConfigAutoTidyWrite(ctx context.Context, req *logical.Requ
 		return nil, err
 	}
 
-	// Start or stop the automatic tidy process
 	if config.Enabled {
 		b.startAutoTidy(ctx, req, &config)
 	} else {
@@ -332,7 +327,6 @@ func (b *backend) pathConfigAutoTidyWrite(ctx context.Context, req *logical.Requ
 }
 
 func (b *backend) doTidyOperation(ctx context.Context, req *logical.Request, status *TidyStatus) {
-	// Update status when done
 	defer func() {
 		b.tidyStatusLock.Lock()
 		defer b.tidyStatusLock.Unlock()
@@ -352,7 +346,6 @@ func (b *backend) doTidyOperation(ctx context.Context, req *logical.Request, sta
 	tidyExpiredCerts := status.TidyExpiredCerts
 	tidyRevokedCerts := status.TidyRevokedCerts
 
-	// Tidy expired certificates
 	if tidyExpiredCerts {
 		if err := b.tidyExpiredCertificates(ctx, req, safetyBuffer); err != nil {
 			b.tidyStatusLock.Lock()
@@ -362,7 +355,6 @@ func (b *backend) doTidyOperation(ctx context.Context, req *logical.Request, sta
 		}
 	}
 
-	// Tidy revoked certificates
 	if tidyRevokedCerts {
 		if err := b.tidyRevokedCertificates(ctx, req, safetyBuffer); err != nil {
 			b.tidyStatusLock.Lock()
@@ -383,36 +375,34 @@ func (b *backend) tidyExpiredCertificates(ctx context.Context, req *logical.Requ
 	deletedCount := uint64(0)
 
 	for _, entry := range entries {
-		// Check for cancellation
 		if atomic.LoadUint32(&b.tidyCancelCAS) == 1 {
 			return nil
 		}
 
-		// Load certificate
 		storageEntry, err := req.Storage.Get(ctx, "certs/"+entry)
 		if err != nil {
-			continue // Skip on error, don't fail the whole operation
+			continue
 		}
 		if storageEntry == nil {
 			continue
 		}
 
-		var nc cert.NebulaCertificate
-		if err := storageEntry.DecodeJSON(&nc); err != nil {
-			continue // Skip invalid certificate
+		var cse CertStorageEntry
+		if err := storageEntry.DecodeJSON(&cse); err != nil {
+			continue
+		}
+		nc, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
+		if err != nil {
+			continue
 		}
 
-		// Check if certificate is expired beyond safety buffer
-		expiryTime := nc.Details.NotAfter.Add(safetyBuffer)
+		expiryTime := nc.NotAfter().Add(safetyBuffer)
 		if currentTime.After(expiryTime) {
-			// Delete the certificate
 			if err := req.Storage.Delete(ctx, "certs/"+entry); err != nil {
-				// Log error but continue
 				continue
 			}
 			deletedCount++
 
-			// Update status
 			b.tidyStatusLock.Lock()
 			b.tidyStatus.CertStoreDeletedCount = deletedCount
 			b.tidyStatusLock.Unlock()
@@ -432,12 +422,10 @@ func (b *backend) tidyRevokedCertificates(ctx context.Context, req *logical.Requ
 	deletedCount := uint64(0)
 
 	for _, entry := range entries {
-		// Check for cancellation
 		if atomic.LoadUint32(&b.tidyCancelCAS) == 1 {
 			return nil
 		}
 
-		// Load revocation details
 		revokedEntry, err := req.Storage.Get(ctx, "revoked/"+entry)
 		if err != nil {
 			continue
@@ -451,31 +439,30 @@ func (b *backend) tidyRevokedCertificates(ctx context.Context, req *logical.Requ
 			continue
 		}
 
-		// Try to load the original certificate to check expiry
 		certEntry, err := req.Storage.Get(ctx, "certs/"+entry)
 		if err != nil || certEntry == nil {
-			// Certificate doesn't exist, safe to remove revocation record
 			if err := req.Storage.Delete(ctx, "revoked/"+entry); err == nil {
 				deletedCount++
 			}
 			continue
 		}
 
-		var nc cert.NebulaCertificate
-		if err := certEntry.DecodeJSON(&nc); err != nil {
+		var cse CertStorageEntry
+		if err := certEntry.DecodeJSON(&cse); err != nil {
+			continue
+		}
+		nc, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
+		if err != nil {
 			continue
 		}
 
-		// Check if certificate is expired beyond safety buffer
-		expiryTime := nc.Details.NotAfter.Add(safetyBuffer)
+		expiryTime := nc.NotAfter().Add(safetyBuffer)
 		if currentTime.After(expiryTime) {
-			// Delete the revocation record
 			if err := req.Storage.Delete(ctx, "revoked/"+entry); err != nil {
 				continue
 			}
 			deletedCount++
 
-			// Update status
 			b.tidyStatusLock.Lock()
 			b.tidyStatus.RevokedCertDeletedCount = deletedCount
 			b.tidyStatusLock.Unlock()
@@ -492,7 +479,7 @@ func (b *backend) startAutoTidy(ctx context.Context, req *logical.Request, confi
 	defer b.autoTidyLock.Unlock()
 
 	if b.autoTidyCtx != nil && b.autoTidyCtx.Err() == nil {
-		return // Already running
+		return
 	}
 
 	b.autoTidyCtx, b.autoTidyCancel = context.WithCancel(ctx)
@@ -523,7 +510,6 @@ func (b *backend) stopAutoTidy() {
 }
 
 func (b *backend) runAutoTidy(req *logical.Request, config *TidyConfig) {
-	// Check if manual tidy is already running
 	b.tidyStatusLock.RLock()
 	if b.tidyStatus.State == "Running" {
 		b.tidyStatusLock.RUnlock()
@@ -531,7 +517,6 @@ func (b *backend) runAutoTidy(req *logical.Request, config *TidyConfig) {
 	}
 	b.tidyStatusLock.RUnlock()
 
-	// Set up status for auto-tidy
 	b.tidyStatusLock.Lock()
 	b.tidyStatus = TidyStatus{
 		SafetyBuffer:     config.SafetyBuffer,
@@ -543,7 +528,6 @@ func (b *backend) runAutoTidy(req *logical.Request, config *TidyConfig) {
 	}
 	b.tidyStatusLock.Unlock()
 
-	// Run tidy operation
 	b.doTidyOperation(context.Background(), req, &b.tidyStatus)
 }
 
