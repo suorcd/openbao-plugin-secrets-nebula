@@ -391,7 +391,7 @@ func (b *backend) tidyExpiredCertificates(ctx context.Context, req *logical.Requ
 		if err := storageEntry.DecodeJSON(&cse); err != nil {
 			continue
 		}
-		nc, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
+		nc, _, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
 		if err != nil {
 			continue
 		}
@@ -451,7 +451,7 @@ func (b *backend) tidyRevokedCertificates(ctx context.Context, req *logical.Requ
 		if err := certEntry.DecodeJSON(&cse); err != nil {
 			continue
 		}
-		nc, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
+		nc, _, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
 		if err != nil {
 			continue
 		}

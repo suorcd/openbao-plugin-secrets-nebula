@@ -105,7 +105,10 @@ func (b *backend) pathRevokeCert(ctx context.Context, req *logical.Request, data
 
 	var cse CertStorageEntry
 	storageEntry.DecodeJSON(&cse)
-	nc, _ := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
+	nc, _, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
+	if err != nil {
+		return nil, err
+	}
 
 	if nc.NotAfter().Before(time.Now()) {
 		return nil, fmt.Errorf("certificate already expired at " + nc.NotAfter().Format("02.01.2006 15:04:05"))

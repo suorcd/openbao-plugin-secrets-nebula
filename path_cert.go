@@ -48,10 +48,11 @@ func (b *backend) pathCertList(ctx context.Context, req *logical.Request, _ *fra
 	caStorageEntry, err := req.Storage.Get(ctx, "ca")
 	var cse CertStorageEntry
 	caStorageEntry.DecodeJSON(&cse)
-	nc, _ := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
+	nc, _, _ := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
 
-	fingerprint := nc.Fingerprint()
-	entries = append(entries, formatFingerprint(fmt.Sprintf("%x", fingerprint)))
+	fingerprint, _ := nc.Fingerprint()
+	fingerprintStr := fmt.Sprintf("%v", fingerprint)
+	entries = append(entries, formatFingerprint(fingerprintStr))
 
 	return logical.ListResponse(entries), nil
 }
@@ -97,7 +98,7 @@ func (b *backend) pathReadCert(ctx context.Context, req *logical.Request, data *
 
 	var cse CertStorageEntry
 	storageEntry.DecodeJSON(&cse)
-	nc, _ := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
+	nc, _, _ := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
 
 	pemCert, err := nc.MarshalPEM()
 
@@ -190,7 +191,7 @@ func (b *backend) pathSign(ctx context.Context, req *logical.Request, data *fram
 		return nil, errutil.InternalError{Err: fmt.Sprintf("unable to decode Nebula Certificate: %v", err)}
 	}
 
-	caCert, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
+	caCert, _, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
 	if err != nil {
 		return nil, errutil.InternalError{Err: fmt.Sprintf("unable to parse Nebula Certificate PEM: %v", err)}
 	}
@@ -248,9 +249,6 @@ func (b *backend) pathSign(ctx context.Context, req *logical.Request, data *fram
 		return nil, errutil.InternalError{Err: fmt.Sprintf("Failed to generate keypair: %v", err)}
 	}
 
-	issuer := caCert.Fingerprint()
-
-	// V2 format requires defining via TBSCertificate
 	tbs := cert.TBSCertificate{
 		Version:        cert.Version2,
 		Name:           name,
@@ -260,7 +258,6 @@ func (b *backend) pathSign(ctx context.Context, req *logical.Request, data *fram
 		NotBefore:      time.Now(),
 		NotAfter:       time.Now().Add(_duration),
 		PublicKey:      publicKey,
-		Issuer:         issuer,
 		IsCA:           false,
 	}
 
@@ -270,10 +267,10 @@ func (b *backend) pathSign(ctx context.Context, req *logical.Request, data *fram
 	}
 
 	pemCert, _ := newCertificate.MarshalPEM()
-	fingerprint := newCertificate.Fingerprint()
-	fingerprintHex := fmt.Sprintf("%x", fingerprint)
+	fingerprint, _ := newCertificate.Fingerprint()
+	fingerprintStr := fmt.Sprintf("%v", fingerprint)
 
-	entry, err := logical.StorageEntryJSON("certs/"+fingerprintHex, CertStorageEntry{Pem: string(pemCert)})
+	entry, err := logical.StorageEntryJSON("certs/"+fingerprintStr, CertStorageEntry{Pem: string(pemCert)})
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +286,7 @@ func (b *backend) pathSign(ctx context.Context, req *logical.Request, data *fram
 			"name":        newCertificate.Name(),
 			"cert":        string(pemCert),
 			"private_key": string(cert.MarshalPrivateKeyToPEM(cert.Curve_CURVE25519, privateKey)),
-			"fingerprint": formatFingerprint(fingerprintHex),
+			"fingerprint": formatFingerprint(fingerprintStr),
 		},
 	}
 

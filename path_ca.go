@@ -96,7 +96,6 @@ func (b *backend) pathGenerateCA(ctx context.Context, req *logical.Request, data
 
 	rotate := data.Get("rotate").(bool)
 
-	// Check for existing CA
 	currentCACertEntry, err := req.Storage.Get(ctx, "ca")
 	if err != nil {
 		return nil, errutil.InternalError{Err: fmt.Sprintf("unable to check for existing CA: %v", err)}
@@ -108,19 +107,17 @@ func (b *backend) pathGenerateCA(ctx context.Context, req *logical.Request, data
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to decode current CA entry: %v", err)}
 		}
 
-		currentCA, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
+		currentCA, _, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
 		if err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to parse current CA PEM: %v", err)}
 		}
 
-		// Check if current CA is expired
 		isExpired := time.Now().After(currentCA.NotAfter())
 
 		if !isExpired && !rotate {
 			return nil, fmt.Errorf("a valid CA certificate already exists; use rotate=true to force rotation")
 		}
 
-		// Get current CA key
 		currentCAKeyEntry, err := req.Storage.Get(ctx, "ca_key")
 		if err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to fetch current CA key: %v", err)}
@@ -129,19 +126,16 @@ func (b *backend) pathGenerateCA(ctx context.Context, req *logical.Request, data
 			return nil, errutil.InternalError{Err: "no CA key found"}
 		}
 
-		// Decode current CA key to store it properly
 		var currentKey ed25519.PrivateKey
 		if err := currentCAKeyEntry.DecodeJSON(&currentKey); err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to decode current CA key for backup: %v", err)}
 		}
 
-		// Convert CA to PEM for storage
 		pemCert, err := currentCA.MarshalPEM()
 		if err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to marshal old CA to PEM: %v", err)}
 		}
 
-		// Store old CA as a map to match our read format
 		oldCAData := map[string]interface{}{
 			"name":       currentCA.Name(),
 			"public_key": string(pemCert),
@@ -149,7 +143,6 @@ func (b *backend) pathGenerateCA(ctx context.Context, req *logical.Request, data
 			"not_after":  currentCA.NotAfter().Format("2006-01-02 15:04:05"),
 		}
 
-		// Move current CA and key to old CA
 		err = saveCertificateEntry(ctx, req, "ca_old", oldCAData)
 		if err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to save old CA: %v", err)}
@@ -160,7 +153,6 @@ func (b *backend) pathGenerateCA(ctx context.Context, req *logical.Request, data
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to save old CA key: %v", err)}
 		}
 
-		// Delete current CA entries as they will be replaced
 		if err := req.Storage.Delete(ctx, "ca"); err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("error deleting current CA: %v", err)}
 		}
@@ -196,7 +188,6 @@ func (b *backend) pathGenerateCA(ctx context.Context, req *logical.Request, data
 		return nil, err
 	}
 
-	// Build the To-Be-Signed Certificate using V2 Engine
 	tbs := cert.TBSCertificate{
 		Version:        cert.Version2,
 		Name:           name,
@@ -229,7 +220,8 @@ func (b *backend) pathGenerateCA(ctx context.Context, req *logical.Request, data
 		return nil, err
 	}
 
-	fingerprint := nc.Fingerprint()
+	fingerprint, _ := nc.Fingerprint()
+	fingerprintStr := fmt.Sprintf("%v", fingerprint)
 
 	var formattedIPs []string
 	for _, ipNet := range nc.Networks() {
@@ -244,7 +236,7 @@ func (b *backend) pathGenerateCA(ctx context.Context, req *logical.Request, data
 	resp := &logical.Response{
 		Data: map[string]interface{}{
 			"name":        nc.Name(),
-			"fingerprint": formatFingerprint(fmt.Sprintf("%x", fingerprint)),
+			"fingerprint": formatFingerprint(fingerprintStr),
 			"groups":      strings.Join(nc.Groups(), ", "),
 			"ips":         strings.Join(formattedIPs, ", "),
 			"subnets":     strings.Join(formattedSubnets, ", "),
@@ -261,9 +253,7 @@ func (b *backend) pathConfigCAUpdate(ctx context.Context, req *logical.Request, 
 	rotate := data.Get("rotate").(bool)
 	rawPemBundle, hasPemBundle := data.GetOk("pem_bundle")
 
-	// Check if we're rotating
 	if rotate {
-		// Get current CA and key
 		currentCACertEntry, err := req.Storage.Get(ctx, "ca")
 		if err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to fetch current CA: %v", err)}
@@ -285,7 +275,7 @@ func (b *backend) pathConfigCAUpdate(ctx context.Context, req *logical.Request, 
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to decode current CA for backup: %v", err)}
 		}
 
-		currentCA, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
+		currentCA, _, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
 		if err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to parse current CA PEM: %v", err)}
 		}
@@ -336,12 +326,12 @@ func (b *backend) pathConfigCAUpdate(ctx context.Context, req *logical.Request, 
 			return logical.ErrorResponse("provided data for import was too short; perhaps a path was passed to the API rather than the contents of a PEM file"), nil
 		}
 
-		_, privateKey, rest, err := cert.UnmarshalSigningPrivateKeyFromPEM([]byte(pemBundle))
+		privateKey, rest, _, err := cert.UnmarshalSigningPrivateKeyFromPEM([]byte(pemBundle))
 		if err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to decode Certificate Key: %v", err)}
 		}
 
-		nc, err := cert.UnmarshalCertificateFromPEM(rest)
+		nc, _, err := cert.UnmarshalCertificateFromPEM(rest)
 		if err != nil {
 			return nil, errutil.InternalError{Err: fmt.Sprintf("unable to decode Certificate: %v", err)}
 		}
@@ -404,7 +394,7 @@ func (b *backend) pathConfigCARead(ctx context.Context, req *logical.Request, da
 		return nil, errutil.InternalError{Err: fmt.Sprintf("unable to decode current Nebula Certificate: %v", err)}
 	}
 
-	currentCA, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
+	currentCA, _, err := cert.UnmarshalCertificateFromPEM([]byte(cse.Pem))
 	if err != nil {
 		return nil, errutil.InternalError{Err: fmt.Sprintf("unable to parse Nebula Certificate PEM: %v", err)}
 	}
