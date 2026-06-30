@@ -1,0 +1,250 @@
+openapi: 3.1.1
+info:
+  title: OpenBao Nebula Secrets Plugin API
+  description: A secrets engine plugin for OpenBao/Vault that manages Slack Nebula certificates.
+  version: 1.0.1
+servers:
+  - url: /v1/{mount_path}
+    description: OpenBao API Server
+    variables:
+      mount_path:
+        default: nebula
+        description: The mount path for the Nebula secrets engine.
+paths:
+  /generate/ca:
+    post:
+      summary: Generate a new Nebula CA
+      description: Generates a new Certificate Authority for Nebula.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  description: Name of the certificate authority
+                duration:
+                  type: string
+                  description: Amount of time the certificate should be valid for (e.g., "8760h")
+                  default: "8760h"
+                groups:
+                  type: string
+                  description: Comma-separated list of groups for subordinate certs
+                ips:
+                  type: string
+                  description: Comma-separated list of ip and network in CIDR notation
+                subnets:
+                  type: string
+                  description: Comma-separated list of subnet addresses in CIDR notation
+                rotate:
+                  type: boolean
+                  description: If true, rotate the current CA to backup and generate a new one
+                  default: false
+      responses:
+        "200":
+          description: Successfully generated CA
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+  /config/ca:
+    get:
+      summary: Read the current CA
+      description: Read the current and previous CA certificates.
+      responses:
+        "200":
+          description: CA information
+    post:
+      summary: Configure or rotate the CA certificate
+      description: Upload an existing CA PEM bundle or trigger a rotation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pem_bundle:
+                  type: string
+                  description: PEM-format, unencrypted secret key and cert
+                rotate:
+                  type: boolean
+                  description: If true, rotate the CA certificate
+                  default: false
+      responses:
+        "200":
+          description: CA successfully configured
+    delete:
+      summary: Delete the CA certificate
+      responses:
+        "204":
+          description: Successfully deleted
+  /sign/{name}:
+    post:
+      summary: Issue a node certificate
+      description: Sign a new Nebula client/server certificate using the CA.
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+          description: Name of the certificate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - ip
+              properties:
+                duration:
+                  type: string
+                  description: Amount of time the certificate should be valid for (e.g., "720h")
+                groups:
+                  type: string
+                  description: Comma-separated list of groups
+                ip:
+                  type: string
+                  description: IPv4 address and network in CIDR notation to assign the cert
+                subnets:
+                  type: string
+                  description: List of subnet addresses in CIDR notation
+      responses:
+        "200":
+          description: Successfully signed certificate
+  /certs/:
+    get:
+      summary: List all Certificates
+      description: List the fingerprints of all issued certificates. Note that OpenBao natively uses the `LIST` HTTP method, which typically maps to a `GET` request with `?list=true` in standard REST interfaces.
+      responses:
+        "200":
+          description: A list of certificate fingerprints
+  /cert/{fingerprint}:
+    get:
+      summary: Read a certificate
+      description: View certificate details by its fingerprint.
+      parameters:
+        - in: path
+          name: fingerprint
+          required: true
+          schema:
+            type: string
+          description: Fingerprint of the certificate
+      responses:
+        "200":
+          description: Certificate details
+  /revoke:
+    post:
+      summary: Revoke a certificate
+      description: Revokes a previously issued Nebula certificate.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fingerprint
+              properties:
+                fingerprint:
+                  type: string
+                  description: Fingerprint of the certificate to revoke
+      responses:
+        "200":
+          description: Successfully revoked
+  /certs/revoked/:
+    get:
+      summary: List revoked certificates
+      description: List the fingerprints of all revoked certificates.
+      responses:
+        "200":
+          description: A list of revoked certificate fingerprints
+  /tidy:
+    post:
+      summary: Trigger manual tidy operation
+      description: Tidy up the backend by removing expired or revoked certificates.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                safety_buffer:
+                  type: integer
+                  description: Seconds beyond certificate expiry before it is removed.
+                  default: 259200
+                tidy_expired_certs:
+                  type: boolean
+                  default: false
+                tidy_revoked_certs:
+                  type: boolean
+                  default: false
+      responses:
+        "200":
+          description: Tidy operation started
+  /tidy-cancel:
+    post:
+      summary: Cancel tidy operation
+      description: Cancel the currently running tidy operation.
+      responses:
+        "204":
+          description: Successfully cancelled
+  /tidy-status:
+    get:
+      summary: Get tidy operation status
+      description: Returns the status of the current or last tidy operation.
+      responses:
+        "200":
+          description: Status information
+  /config/auto-tidy:
+    get:
+      summary: Get auto-tidy configuration
+      description: Return the current configuration for automatic tidy operations.
+      responses:
+        "200":
+          description: Current auto-tidy configuration
+    post:
+      summary: Set auto-tidy configuration
+      description: Update the configuration for automatic tidy operations.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  default: false
+                interval_duration:
+                  type: integer
+                  description: Duration between automatic tidy runs in seconds.
+                  default: 43200
+                tidy_cert_store:
+                  type: boolean
+                  default: false
+                tidy_revoked_certs:
+                  type: boolean
+                  default: false
+                tidy_expired_certs:
+                  type: boolean
+                  default: false
+                safety_buffer:
+                  type: integer
+                  default: 259200
+                pause_duration:
+                  type: integer
+                  default: 0
+      responses:
+        "204":
+          description: Successfully configured
