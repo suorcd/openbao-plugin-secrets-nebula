@@ -7,13 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- AGENTS.md with project conventions, crypto rules, and plugin registration gotchas
+
+### Changed
+- Updated README with explicit plugin upgrade instructions (versioned registration flow)
+- Fixed README examples: removed `-type` flag from `bao plugin register`, corrected
+  `safety_buffer` and `interval_duration` to integer seconds (matching `TypeDurationSecond`),
+  fixed `/sign/` to `/issue/`, replaced `make test` with `go test -buildvcs=false ./...`
+- Removed unimplemented `/sign/{name}` endpoint from openapi.yaml
+
+### Fixed
+- Fixed test suite for Nebula v1.10.3+ API compatibility (`cert.NebulaCertificate`
+  and `cert.NebulaCertificateDetails` types became interfaces)
+- Fixed vet error: non-constant format string in `pathRevokeCert`
+
+## [v2.0.3] - 2026-06-30
+
+### Fixed
+- **Critical**: replaced `ed25519.GenerateKey` with native `curve25519.X25519` key
+  generation for node certificates (`/issue` endpoint). Previously the cert embedded
+  an Ed25519 public key but claimed `Curve_CURVE25519`, causing Nebula V2 to reject
+  the keypair due to a mathematical mismatch during scalar multiplication.
+
+## [v2.0.2] - 2026-06-26
+
+### Added
+- OpenAPI specification (`openapi.yaml`) for all plugin endpoints
+
+### Changed
+- Renamed `/sign/{name}` endpoint to `/issue/{name}` to reflect that the plugin
+  generates keypairs internally
+- Updated README with comprehensive usage documentation
+
+### Fixed
+- Fixed X25519 private key PEM encoding to use the raw 32-byte seed
+
+## [v2.0.1] - 2026-06-26
+
+### Changed
+- Updated CI workflow (GitHub Actions) to latest versions
+- Bumped Go version to 1.25
+
+## [v2.0.0] - 2026-06-25
+
+### Added
+- **Nebula V2 certificate support**: upgraded `slackhq/nebula` to v1.10.3+
+- Nix flake for deterministic builds and development environment
+- Build and dev server targets via Makefile
+
+### Changed
+- All certificate operations now issue and parse Nebula V2 certificates exclusively
+- Imported CAs must be Nebula V2 format
+
 ## [1.0.1] - 2025-08-05
 
 ### Added
 - Changelog
 
 ### Changed
-- fixed small typo in goreleaser config
+- Fixed typo in goreleaser config
 
 ## [1.0.0] - 2025-08-05
 
@@ -48,5 +101,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added validation to prevent unintended CA overwrites
 - Added safety checks for CA rotation operations
 
-[Unreleased]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v2.0.3...HEAD
+[v2.0.3]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v2.0.2...v2.0.3
+[v2.0.2]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v2.0.1...v2.0.2
+[v2.0.1]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v2.0.0...v2.0.1
+[v2.0.0]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v1.0.1...v2.0.0
+[1.0.1]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/releases/tag/v1.0.1
 [1.0.0]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/releases/tag/v1.0.0
