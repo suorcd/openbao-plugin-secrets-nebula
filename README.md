@@ -44,10 +44,9 @@ A secrets engine plugin for [OpenBao](https://github.com/openbao/openbao) (and H
 
    # Register the plugin in the system catalog
    bao plugin register \
-       -type=secret \
        -sha256="${SHA256}" \
        -command="openbao-plugin-secrets-nebula" \
-       secret/openbao-plugin-secrets-nebula
+       secret openbao-plugin-secrets-nebula
    ```
 
 ## Usage
@@ -99,10 +98,10 @@ A secrets engine plugin for [OpenBao](https://github.com/openbao/openbao) (and H
 1. Issue a node certificate:
 
    ```shell
-   bao write nebula/sign/example.com \
-       ip="10.0.0.1/32" \
-       duration="720h" \
-       groups="servers"
+    bao write nebula/issue/example.com \
+        ip="10.0.0.1/32" \
+        duration="720h" \
+        groups="servers"
    ```
 
 2. List all certificates:
@@ -121,12 +120,12 @@ A secrets engine plugin for [OpenBao](https://github.com/openbao/openbao) (and H
 1. Configure automatic cleanup:
 
    ```shell
-   bao write nebula/config/auto-tidy \
-       enabled=true \
-       interval_duration="24h" \
-       tidy_expired_certs=true \
-       tidy_revoked_certs=true \
-       safety_buffer="168h"  # 1 week safety buffer
+    bao write nebula/config/auto-tidy \
+        enabled=true \
+        interval_duration=86400 \
+        tidy_expired_certs=true \
+        tidy_revoked_certs=true \
+        safety_buffer=604800  # 1 week safety buffer in seconds
    ```
 
 2. View cleanup configuration:
@@ -137,11 +136,98 @@ A secrets engine plugin for [OpenBao](https://github.com/openbao/openbao) (and H
 
 3. Run manual cleanup:
    ```shell
-   bao write nebula/tidy \
-       tidy_expired_certs=true \
-       tidy_revoked_certs=true \
-       safety_buffer="48h"
+    bao write nebula/tidy \
+        tidy_expired_certs=true \
+        tidy_revoked_certs=true \
+        safety_buffer=172800  # 48 hours in seconds
    ```
+
+## Upgrading the Plugin
+
+> **WARNING**: Never overwrite the existing plugin catalog entry. Plugin checksum mismatches between the catalog and binary on disk will permanently lock mounts into a "cannot write to storage during setup" state that requires a full disable/re-enable.
+
+OpenBao 2.5+ supports versioned plugin registration. Register each release as a distinct version, then tune mounts to the new version and reload globally. This avoids destructive overwrites and enables rollback.
+
+### Step 1: Distribute the new binary
+
+The binary must be on disk on **every** OpenBao node **before** updating the catalog. Never rely on init containers for upgrades — they only run at pod start.
+
+**Kubernetes (Rancher / Helm chart):**
+
+```shell
+# Copy the binary to all pods while they are running
+for pod in openbao-vault-0 openbao-vault-1 openbao-vault-2; do
+  kubectl exec -n openbao $pod -- wget -qO- \
+    https://github.com/suorcd/openbao-plugin-secrets-nebula/releases/download/v2.0.3/openbao-plugin-secrets-nebula_Linux_x86_64.tar.gz \
+    | tar -xz -C /vault/data/plugins/
+done
+```
+
+**Bare-metal / single-node:**
+
+```shell
+wget -qO- https://github.com/suorcd/openbao-plugin-secrets-nebula/releases/download/v2.0.3/openbao-plugin-secrets-nebula_Linux_x86_64.tar.gz \
+  | tar -xz -C /etc/openbao/plugins/
+```
+
+Only after the binary is on **all** nodes should you proceed to step 2.
+
+### Step 2: Register the new version
+
+```shell
+# Log in with a root token or a token with sys/plugins/catalog/secret/* permissions
+bao login
+
+SHA256=$(sha256sum /etc/openbao/plugins/openbao-plugin-secrets-nebula | cut -d' ' -f1)
+
+# Flags MUST come before positional arguments. No -type flag.
+bao plugin register \
+    -sha256="${SHA256}" \
+    -command="openbao-plugin-secrets-nebula" \
+    -version=v2.0.3 \
+    secret openbao-plugin-secrets-nebula
+```
+
+This adds `v2.0.3` to the catalog **without** removing the previous version.
+
+### Step 3: Tune the mount to the new version
+
+```shell
+bao secrets tune -plugin-version=v2.0.3 nebula
+```
+
+The mount continues running the old version until reloaded.
+
+### Step 4: Reload globally
+
+```shell
+bao plugin reload -plugin openbao-plugin-secrets-nebula -scope global
+```
+
+The `global` scope ensures all Raft replicas pick up the new binary. After reload, verify:
+
+```shell
+bao secrets list -detailed | grep nebula
+```
+
+The `Running Version` column should now match the `Version` column.
+
+### Rollback
+
+If the new version causes issues, tune back to the previous version and reload:
+
+```shell
+bao secrets tune -plugin-version=<previous-version> nebula
+bao plugin reload -plugin openbao-plugin-secrets-nebula -scope global
+```
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `cannot write to storage during setup` | Checksum mismatch — binary on disk doesn't match catalog SHA for the pinned version | Disable + re-enable the mount, then re-import CA |
+| `checksums did not match` on reload | A Raft replica still has the old binary | Distribute the binary to the failing node and retry |
+| Mount won't disable | Plugin process deadlocked | Restart the pod / OpenBao service |
 
 ## Development
 
@@ -179,7 +265,7 @@ This repository includes a `flake.nix` for deterministic, reproducible builds an
 
     ```shell
     # Run tests
-    make test
+    go test -buildvcs=false ./...
     ```
 
 ## Contributing
