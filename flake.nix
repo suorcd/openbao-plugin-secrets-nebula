@@ -23,7 +23,7 @@
 
           openbao-plugin-secrets-nebula = pkgs.buildGoModule {
             pname = "openbao-plugin-secrets-nebula";
-            version = "2.0.0"; # Bumping to v2 for Nebula certs
+            version = "2.0.3"; # Bumping to v2 for Nebula certs
 
             src = ./.;
 
