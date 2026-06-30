@@ -3,6 +3,7 @@ package nebula
 import (
 	"context"
 	"crypto/rand"
+	"encoding/pem"
 	"fmt"
 	"net/netip"
 	"strings"
@@ -132,13 +133,13 @@ func (b *backend) pathReadCert(ctx context.Context, req *logical.Request, data *
 	return resp, nil
 }
 
-func buildPathSign(b *backend) *framework.Path {
+func buildPathIssue(b *backend) *framework.Path {
 	return &framework.Path{
-		Pattern: "sign/" + framework.GenericNameRegex("name"),
+		Pattern: "issue/" + framework.GenericNameRegex("name"),
 		Fields: map[string]*framework.FieldSchema{
 			"name": {
 				Type:        framework.TypeString,
-				Description: `Required: name of the certificate authority`,
+				Description: `Required: name of the certificate`,
 				Required:    true,
 			},
 			"duration": {
@@ -163,14 +164,14 @@ func buildPathSign(b *backend) *framework.Path {
 		},
 		Operations: map[logical.Operation]framework.OperationHandler{
 			logical.UpdateOperation: &framework.PathOperation{
-				Callback: b.pathSign,
-				Summary:  "",
+				Callback: b.pathIssue,
+				Summary:  "Generate a new keypair and issue a certificate",
 			},
 		},
 	}
 }
 
-func (b *backend) pathSign(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+func (b *backend) pathIssue(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	caKeyStorageEntry, err := req.Storage.Get(ctx, "ca_key")
 	if err != nil {
 		return nil, errutil.InternalError{Err: fmt.Sprintf("unable to fetch nebula ca: %v", err)}
@@ -280,12 +281,20 @@ func (b *backend) pathSign(ctx context.Context, req *logical.Request, data *fram
 		return nil, err
 	}
 
+	// Properly extract the 32-byte seed for the Nebula private key and PEM encode it
+	seed := privateKey.Seed()
+	privPEMBlock := &pem.Block{
+		Type:  "NEBULA X25519 PRIVATE KEY",
+		Bytes: seed,
+	}
+	encodedPrivKey := string(pem.EncodeToMemory(privPEMBlock))
+
 	resp := &logical.Response{
 		Data: map[string]interface{}{
 			"notAfter":    time.Now().Add(_duration).Format("02.01.2006 15:04:05"),
 			"name":        newCertificate.Name(),
 			"cert":        string(pemCert),
-			"private_key": string(cert.MarshalPrivateKeyToPEM(cert.Curve_CURVE25519, privateKey)),
+			"private_key": encodedPrivKey,
 			"fingerprint": formatFingerprint(fingerprintStr),
 		},
 	}

@@ -52,7 +52,7 @@ func Backend() (*backend, error) {
 		Paths: []*framework.Path{
 			buildPathGenerateCA(&b),
 			pathConfigCA(&b),
-			buildPathSign(&b),
+			buildPathIssue(&b),
 			buildPathCert(&b),
 			buildPathListCerts(&b),
 			buildPathRevoke(&b),
