@@ -2,6 +2,7 @@ package nebula
 
 import (
 	"context"
+	"crypto/rand"
 	"strings"
 	"testing"
 	"time"
@@ -286,22 +287,33 @@ func TestTidyValidation(t *testing.T) {
 }
 
 // Helper function to create a test certificate
-func createTestCertificate(t *testing.T, notBefore, notAfter time.Time) cert.NebulaCertificate {
-	publicKey, _, err := ed25519.GenerateKey(nil)
+func createTestCertificate(t *testing.T, notBefore, notAfter time.Time) CertStorageEntry {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatalf("Failed to generate key: %v", err)
 	}
 
-	return cert.NebulaCertificate{
-		Details: cert.NebulaCertificateDetails{
-			Name:      "test-cert",
-			Groups:    []string{"test"},
-			NotBefore: notBefore,
-			NotAfter:  notAfter,
-			PublicKey: publicKey,
-			IsCA:      false,
-		},
+	tbs := cert.TBSCertificate{
+		Version:   cert.Version2,
+		Name:      "test-cert",
+		Groups:    []string{"test"},
+		NotBefore: notBefore,
+		NotAfter:  notAfter,
+		PublicKey: publicKey,
+		IsCA:      true,
 	}
+
+	nc, err := tbs.Sign(nil, cert.Curve_CURVE25519, privateKey)
+	if err != nil {
+		t.Fatalf("Failed to sign test certificate: %v", err)
+	}
+
+	pemCert, err := nc.MarshalPEM()
+	if err != nil {
+		t.Fatalf("Failed to marshal test certificate: %v", err)
+	}
+
+	return CertStorageEntry{Pem: string(pemCert)}
 }
 
 // Helper function to create backend with storage for testing

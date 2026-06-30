@@ -111,7 +111,7 @@ func (b *backend) pathRevokeCert(ctx context.Context, req *logical.Request, data
 	}
 
 	if nc.NotAfter().Before(time.Now()) {
-		return nil, fmt.Errorf("certificate already expired at " + nc.NotAfter().Format("02.01.2006 15:04:05"))
+		return nil, fmt.Errorf("certificate already expired at %s", nc.NotAfter().Format("02.01.2006 15:04:05"))
 	}
 
 	revocationDetails := RevocationDetails{Fingerprint: cleanFingerprint, RevokedAt: time.Now()}
