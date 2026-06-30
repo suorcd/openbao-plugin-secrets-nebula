@@ -135,56 +135,6 @@ paths:
                       private_key:
                         type: string
                         description: The 32-byte X25519 private key seed in PEM format.
-  /sign/{name}:
-    post:
-      summary: Sign a node certificate using a provided public key
-      description: Sign a new Nebula client/server certificate using the CA and a client-provided public key. No private key is returned.
-      parameters:
-        - in: path
-          name: name
-          required: true
-          schema:
-            type: string
-          description: Name of the certificate
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - ip
-                - pub_key
-              properties:
-                pub_key:
-                  type: string
-                  description: The Nebula client's public key to be signed.
-                duration:
-                  type: string
-                  description: Amount of time the certificate should be valid for (e.g., "720h")
-                groups:
-                  type: string
-                  description: Comma-separated list of groups
-                ip:
-                  type: string
-                  description: IPv4 address and network in CIDR notation to assign the cert
-                subnets:
-                  type: string
-                  description: List of subnet addresses in CIDR notation
-      responses:
-        "200":
-          description: Successfully signed certificate
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    properties:
-                      cert:
-                        type: string
-                        description: The signed Nebula V2 public certificate in PEM format.
   /certs/:
     get:
       summary: List all Certificates

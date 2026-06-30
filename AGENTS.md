@@ -30,7 +30,6 @@ Note: there is NO `make test` target. README is wrong.
 - Entrypoint: `cmd/openbao-plugin-secrets-nebula/main.go`.
 - Uses OpenBao v2 SDK `framework.Backend` pattern.
 - Paths: generate/ca, config/ca, issue/:name, cert/:fingerprint, certs/, revoke, certs/revoked/, tidy, tidy-cancel, tidy-status, config/auto-tidy.
-- The `/sign/:name` endpoint from README/openapi.yaml is NOT implemented in code.
 
 ## Certificates
 
