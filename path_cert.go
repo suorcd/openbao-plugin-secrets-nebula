@@ -13,6 +13,7 @@ import (
 	"github.com/openbao/openbao/sdk/v2/helper/errutil"
 	"github.com/openbao/openbao/sdk/v2/logical"
 	"github.com/slackhq/nebula/cert"
+	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/ed25519"
 )
 
@@ -245,9 +246,13 @@ func (b *backend) pathIssue(ctx context.Context, req *logical.Request, data *fra
 		}
 	}
 
-	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	var nodePrivKey [32]byte
+	if _, err := rand.Read(nodePrivKey[:]); err != nil {
+		return nil, errutil.InternalError{Err: fmt.Sprintf("failed to generate X25519 private key: %v", err)}
+	}
+	publicKey, err := curve25519.X25519(nodePrivKey[:], curve25519.Basepoint)
 	if err != nil {
-		return nil, errutil.InternalError{Err: fmt.Sprintf("Failed to generate keypair: %v", err)}
+		return nil, errutil.InternalError{Err: fmt.Sprintf("failed to derive X25519 public key: %v", err)}
 	}
 
 	tbs := cert.TBSCertificate{
@@ -281,11 +286,9 @@ func (b *backend) pathIssue(ctx context.Context, req *logical.Request, data *fra
 		return nil, err
 	}
 
-	// Properly extract the 32-byte seed for the Nebula private key and PEM encode it
-	seed := privateKey.Seed()
 	privPEMBlock := &pem.Block{
 		Type:  "NEBULA X25519 PRIVATE KEY",
-		Bytes: seed,
+		Bytes: nodePrivKey[:],
 	}
 	encodedPrivKey := string(pem.EncodeToMemory(privPEMBlock))
 
