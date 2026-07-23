@@ -1,13 +1,13 @@
 module github.com/mkrauser/openbao-plugin-secrets-nebula
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/openbao/openbao/api/v2 v2.1.0
 	github.com/openbao/openbao/sdk/v2 v2.1.0
-	github.com/slackhq/nebula v1.10.3
-	golang.org/x/crypto v0.47.0
+	github.com/slackhq/nebula v1.11.0
+	golang.org/x/crypto v0.54.0
 )
 
 require (
@@ -54,9 +54,9 @@ require (
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	golang.org/x/net v0.49.0 // indirect
-	golang.org/x/sys v0.40.0 // indirect
-	golang.org/x/text v0.33.0 // indirect
+	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240304212257-790db918fca8 // indirect
 	google.golang.org/grpc v1.62.1 // indirect
