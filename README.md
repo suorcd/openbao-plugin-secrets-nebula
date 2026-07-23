@@ -158,7 +158,7 @@ The binary must be on disk on **every** OpenBao node **before** updating the cat
 # Copy the binary to all pods while they are running
 for pod in openbao-vault-0 openbao-vault-1 openbao-vault-2; do
   kubectl exec -n openbao $pod -- wget -qO- \
-    https://github.com/suorcd/openbao-plugin-secrets-nebula/releases/download/v2.0.3/openbao-plugin-secrets-nebula_Linux_x86_64.tar.gz \
+    https://github.com/suorcd/openbao-plugin-secrets-nebula/releases/download/v2.0.4/openbao-plugin-secrets-nebula_Linux_x86_64.tar.gz \
     | tar -xz -C /vault/data/plugins/
 done
 ```
@@ -166,7 +166,7 @@ done
 **Bare-metal / single-node:**
 
 ```shell
-wget -qO- https://github.com/suorcd/openbao-plugin-secrets-nebula/releases/download/v2.0.3/openbao-plugin-secrets-nebula_Linux_x86_64.tar.gz \
+wget -qO- https://github.com/suorcd/openbao-plugin-secrets-nebula/releases/download/v2.0.4/openbao-plugin-secrets-nebula_Linux_x86_64.tar.gz \
   | tar -xz -C /etc/openbao/plugins/
 ```
 
@@ -184,16 +184,16 @@ SHA256=$(sha256sum /etc/openbao/plugins/openbao-plugin-secrets-nebula | cut -d' 
 bao plugin register \
     -sha256="${SHA256}" \
     -command="openbao-plugin-secrets-nebula" \
-    -version=v2.0.3 \
+    -version=v2.0.4 \
     secret openbao-plugin-secrets-nebula
 ```
 
-This adds `v2.0.3` to the catalog **without** removing the previous version.
+This adds `v2.0.4` to the catalog **without** removing the previous version.
 
 ### Step 3: Tune the mount to the new version
 
 ```shell
-bao secrets tune -plugin-version=v2.0.3 nebula
+bao secrets tune -plugin-version=v2.0.4 nebula
 ```
 
 The mount continues running the old version until reloaded.
