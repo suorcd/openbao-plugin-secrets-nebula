@@ -20,7 +20,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.25" # Bumped to match go.mod requirement for Nebula V2
+          go-version: "1.26" # Bumped to match go.mod requirement
           cache: true
 
       - name: Run GoReleaser
