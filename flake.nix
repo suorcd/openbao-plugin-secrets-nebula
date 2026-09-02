@@ -21,9 +21,9 @@
         packages = rec {
           default = openbao-plugin-secrets-nebula;
 
-          openbao-plugin-secrets-nebula = pkgs.buildGoModule {
+          openbao-plugin-secrets-nebula = pkgs.buildGo127Module {
             pname = "openbao-plugin-secrets-nebula";
-            version = "2.0.4"; # Bumping to v2 for Nebula certs
+            version = "2.1.0"; # Bumping to v2 for Nebula certs
 
             src = ./.;
 
@@ -33,7 +33,7 @@
             # Nix requires the vendor hash to guarantee reproducibility.
             # Leave this as fakeHash for the first build. It will fail and
             # give you the real hash, which you will paste here.
-            vendorHash = "sha256-ZKvUwFbk4O60NRiX+OrycD1KxZt0tObSQS7KjBOtTGo=";
+            vendorHash = "sha256-Rl6Hvh0NJdInLa0JPeUL/GocdER7ywQOlABAP9/H35Q=";
 
             meta = with pkgs.lib; {
               description = "OpenBao Secrets Engine for Nebula PKI";
@@ -47,7 +47,7 @@
         devShells.default = pkgs.mkShell {
           # This gives you a perfect local dev environment when you run `nix develop`
           buildInputs = with pkgs; [
-            go # Latest stable Go from nixpkgs
+            go_1_27
             goreleaser # For building your Github releases
             gnumake
             gotools

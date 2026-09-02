@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [v2.1.0] - 2026-09-02
+
+### Added
+- Bumped `slackhq/nebula` dependency to v1.11.1 (cert API unchanged, no source changes)
+
+### Changed
+- Bumped Go toolchain to Go 1.27 (`go.mod`), with `.goversion` and release workflow on 1.27.1
+- Updated flake inputs and Nixpkgs pin
+- Upgraded OpenBao deps to `api/v2 v2.6.0` and `sdk/v2 v2.6.2`, plus transitive module updates from `go get -u`
+
 ## [v2.0.4] - 2026-07-23
 
 ### Added
@@ -12,8 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Bumped Go version to 1.26.0, updated flake inputs
-
-## [Unreleased]
 
 ## [v2.0.3] - 2026-06-30
 
@@ -94,7 +104,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added validation to prevent unintended CA overwrites
 - Added safety checks for CA rotation operations
 
-[Unreleased]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v2.0.4...HEAD
+[Unreleased]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v2.1.0...HEAD
+[v2.1.0]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v2.0.4...v2.1.0
 [v2.0.4]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v2.0.3...v2.0.4
 [v2.0.3]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v2.0.2...v2.0.3
 [v2.0.2]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v2.0.1...v2.0.2
