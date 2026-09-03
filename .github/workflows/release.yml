@@ -20,7 +20,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26" # Bumped to match go.mod requirement
+          go-version: "1.27.x" # Match go.mod major/minor
           cache: true
 
       - name: Run GoReleaser
@@ -31,4 +31,3 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
