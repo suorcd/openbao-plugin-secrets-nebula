@@ -36,7 +36,8 @@ changelog:
       - '^docs:'
       - '^test:'
       - '^ci:'
-      - '^chore:'
+      # NOTE: '^chore:' is intentionally NOT excluded. Releases are cut as
+      # 'chore: ...' bumps; excluding them left the Changelog section empty.
 
 release:
   prerelease: auto # Mark releases as pre-release if there's a dash in the version (e.g., v1.0.0-rc1)

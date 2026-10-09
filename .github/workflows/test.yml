@@ -1,0 +1,62 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - feature/main-v2-dev
+  pull_request:
+
+# Least privilege: jobs never write to the repo.
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same ref to save Actions minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    name: Go build, vet, test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: .goversion
+          cache: true
+
+      - name: Check go.mod/go.sum are tidy
+        run: go mod tidy -diff
+
+      - name: Build
+        run: go build -buildvcs=false ./...
+
+      - name: Vet
+        run: go vet -buildvcs=false ./...
+
+      - name: Test
+        run: go test -buildvcs=false ./...
+
+      - name: Validate goreleaser config
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: latest
+          args: check
+
+  nix:
+    name: Nix build (vendor hash guard)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31.11.1
+
+      - name: Build
+        run: nix build -L

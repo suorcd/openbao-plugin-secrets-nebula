@@ -28,6 +28,18 @@ Note: there is no `make test` target; run `go test -buildvcs=false ./...` (as th
 
 - Agent-assisted commits carry an `Assisted-by:` trailer naming the tool and model that made the edit, e.g. `Assisted-by: opencode (deepseek-v4.1-flash)`.
 
+## Releasing
+
+Version literals live in several places; bump them all before tagging:
+
+1. `flake.nix` `version` (also feeds `-X main.version` via ldflags)
+2. `openapi.yaml` `info.version`
+3. `CHANGELOG.md` new section + compare links at the bottom
+4. `README.md` download URLs and `-version=`/`plugin-version=` examples
+5. `.goversion` patch level (release workflow reads it via `go-version-file`)
+
+Then: merge to `feature/main-v2-dev` (squash, keep the `Assisted-by:` trailer), tag `vX.Y.Z` (lightweight, matches existing tags), push the tag, verify the goreleaser release (assets, checksums, Full Changelog link, binary logs its version).
+
 ## Architecture
 
 - Single Go package `nebula` at repo root.
@@ -56,7 +68,7 @@ Note: there is no `make test` target; run `go test -buildvcs=false ./...` (as th
 - `pathConfigCADelete` is a no-op (`path_ca.go:435`).
 - `pathListRevokedCertsHandler` lists `certs/` instead of `revoked/` — likely a bug.
 - `safety_buffer` field type is `framework.TypeDurationSecond` (integer seconds), not Go duration strings. README examples using `"168h"` are wrong for this parameter.
-- No PR CI — only `release.yml` on `v*` tags via goreleaser. Test/lint must be run locally.
+- No PR CI gate beyond `test.yml` (go build/vet/test + `nix build`) — `release.yml` still only runs on `v*` tags.
 - `make all` starts an OpenBao dev server (terminal-blocking).
 - `/bao` and `result` dirs are gitignored.
 

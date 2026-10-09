@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- CI workflow (`test.yml`) running on push to `feature/main-v2-dev` and on pull requests: `go mod tidy -diff`, build, vet, test, `goreleaser check`, plus a `nix build` job that guards the flake `vendorHash`
+
+### Changed
+- Release notes no longer exclude `chore:` commits; that filter had left the Changelog section of published releases empty
+
+### Fixed
+- Backfilled the v2.10.1 release notes with the change list
+
 ## [v2.10.1] - 2026-10-09
 
 ### Changed
