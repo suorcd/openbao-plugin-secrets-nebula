@@ -1,13 +1,13 @@
 module github.com/mkrauser/openbao-plugin-secrets-nebula
 
-go 1.27
+go 1.27.0
 
 require (
 	github.com/hashicorp/go-hclog v1.6.3
-	github.com/openbao/openbao/api/v2 v2.6.0
-	github.com/openbao/openbao/sdk/v2 v2.6.2
-	github.com/slackhq/nebula v1.11.1
-	golang.org/x/crypto v0.56.0
+	github.com/openbao/openbao/api/v2 v2.7.1
+	github.com/openbao/openbao/sdk/v2 v2.7.1
+	github.com/slackhq/nebula v1.11.2
+	golang.org/x/crypto v0.58.0
 )
 
 require (
@@ -45,13 +45,13 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/oklog/run v1.2.0 // indirect
-	github.com/openbao/go-kms-wrapping/v2 v2.8.0 // indirect
+	github.com/openbao/go-kms-wrapping/v2 v2.9.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/stretchr/testify v1.12.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260831171406-18b4a7587f8a // indirect
 	google.golang.org/grpc v1.83.2 // indirect

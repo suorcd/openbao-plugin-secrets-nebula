@@ -18,9 +18,9 @@ jobs:
           fetch-depth: 0 # Required for GoReleaser to work properly
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
-          go-version: "1.27.x" # Match go.mod major/minor
+          go-version-file: .goversion # Pinned patch release (1.27.2)
           cache: true
 
       - name: Run GoReleaser

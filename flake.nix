@@ -21,27 +21,39 @@
         packages = rec {
           default = openbao-plugin-secrets-nebula;
 
-          openbao-plugin-secrets-nebula = pkgs.buildGo127Module {
-            pname = "openbao-plugin-secrets-nebula";
-            version = "2.1.0"; # Bumping to v2 for Nebula certs
+          openbao-plugin-secrets-nebula =
+            let
+              version = "2.10.1";
+            in
+            pkgs.buildGo127Module {
+              pname = "openbao-plugin-secrets-nebula";
+              inherit version; # Bumping to v2 for Nebula certs
 
-            src = ./.;
+              src = ./.;
 
-            # We target the main command package specifically
-            subPackages = [ "cmd/openbao-plugin-secrets-nebula" ];
+              # We target the main command package specifically
+              subPackages = [ "cmd/openbao-plugin-secrets-nebula" ];
 
-            # Nix requires the vendor hash to guarantee reproducibility.
-            # Leave this as fakeHash for the first build. It will fail and
-            # give you the real hash, which you will paste here.
-            vendorHash = "sha256-Rl6Hvh0NJdInLa0JPeUL/GocdER7ywQOlABAP9/H35Q=";
+              # Stamp the binary version so the nix-built artifact
+              # self-identifies, matching goreleaser's -X main.version.
+              ldflags = [
+                "-s"
+                "-w"
+                "-X main.version=${version}"
+              ];
 
-            meta = with pkgs.lib; {
-              description = "OpenBao Secrets Engine for Nebula PKI";
-              homepage = "https://github.com/suorcd/openbao-plugin-secrets-nebula";
-              license = licenses.mpl20;
-              maintainers = [ ];
+              # Nix requires the vendor hash to guarantee reproducibility.
+              # Leave this as fakeHash for the first build. It will fail and
+              # give you the real hash, which you will paste here.
+              vendorHash = "sha256-69vxgXHFPtkiWxUH8yjmWEs3U3+p+QKNKf4RAzRLSm0=";
+
+              meta = with pkgs.lib; {
+                description = "OpenBao Secrets Engine for Nebula PKI";
+                homepage = "https://github.com/suorcd/openbao-plugin-secrets-nebula";
+                license = licenses.mit;
+                maintainers = [ ];
+              };
             };
-          };
         };
 
         devShells.default = pkgs.mkShell {
