@@ -10,10 +10,15 @@ import (
 	"github.com/openbao/openbao/sdk/v2/plugin"
 )
 
+var version = "dev"
+
 func main() {
 	apiClientMeta := &api.PluginAPIClientMeta{}
 	flags := apiClientMeta.FlagSet()
 	flags.Parse(os.Args[1:])
+
+	logger := hclog.New(&hclog.LoggerOptions{})
+	logger.Info("plugin starting", "version", version)
 
 	tlsConfig := apiClientMeta.GetTLSConfig()
 	tlsProviderFunc := api.VaultPluginTLSProvider(tlsConfig)
@@ -23,8 +28,6 @@ func main() {
 		TLSProviderFunc:    tlsProviderFunc,
 	})
 	if err != nil {
-		logger := hclog.New(&hclog.LoggerOptions{})
-
 		logger.Error("plugin shutting down", "error", err)
 		os.Exit(1)
 	}

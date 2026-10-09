@@ -7,7 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [v2.1.0] - 2026-09-02
+## [v2.10.1] - 2026-10-09
+
+### Changed
+- Upgraded OpenBao deps to `api/v2 v2.7.1` and `sdk/v2 v2.7.1` (includes the SDK audit-log plaintext leak fix GHSA-8xxq-mq9m-xmhw, present in sdk v2.6.3+), plus transitive module updates from `go get -u`
+- Bumped `slackhq/nebula` dependency to v1.11.2 (cert API unchanged, no source changes)
+- Bumped `golang.org/x/crypto` to v0.58.0
+- Bumped `.goversion` to 1.27.2; release workflow moved to `actions/setup-go@v7` and now reads the pin via `go-version-file`
+- Updated flake inputs and Nixpkgs pin
+
+### Fixed
+- README download URLs pointed at the nonexistent `v2.1.0` release (404); they now reference the real tag
+- CHANGELOG reconciled with the actual release tags (`v2.10.0`, previously recorded as `v2.1.0`; added missing `v2.0.5`)
+- Release-notes footer compared against the upstream `mkrauser` repo where the v2.x tags don't exist; it now compares on `suorcd`. The install snippet also now matches the README (`bao plugin register ... secret openbao-plugin-secrets-nebula`)
+- The `-X main.version` ldflag had no target; the plugin now declares a `version` variable and logs it at startup
+- LICENSE placeholders filled (Matthias Krauser 2025, suorcd 2026) and the flake metadata corrected to MIT to match the LICENSE file and README
+- The Nix-built binary now stamps its version via `-X main.version` (flake `ldflags`); it previously reported `dev`
+- README clone snippet and indented code fences fixed; stale AGENTS.md notes corrected and the commit-trailer convention documented
+
+## [v2.10.0] - 2026-09-03
 
 ### Added
 - Bumped `slackhq/nebula` dependency to v1.11.1 (cert API unchanged, no source changes)
@@ -16,6 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bumped Go toolchain to Go 1.27 (`go.mod`), with `.goversion` and release workflow on 1.27.1
 - Updated flake inputs and Nixpkgs pin
 - Upgraded OpenBao deps to `api/v2 v2.6.0` and `sdk/v2 v2.6.2`, plus transitive module updates from `go get -u`
+
+## [v2.0.5] - 2026-07-23
+
+### Fixed
+- Updated GoReleaser config to the v2 schema and bumped CI Go to 1.26
 
 ## [v2.0.4] - 2026-07-23
 
@@ -104,12 +127,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added validation to prevent unintended CA overwrites
 - Added safety checks for CA rotation operations
 
-[Unreleased]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v2.1.0...HEAD
-[v2.1.0]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v2.0.4...v2.1.0
-[v2.0.4]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v2.0.3...v2.0.4
-[v2.0.3]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v2.0.2...v2.0.3
-[v2.0.2]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v2.0.1...v2.0.2
-[v2.0.1]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v2.0.0...v2.0.1
-[v2.0.0]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/v1.0.1...v2.0.0
-[1.0.1]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/releases/tag/v1.0.1
-[1.0.0]: https://github.com/mkrauser/openbao-plugin-secrets-nebula/releases/tag/v1.0.0
+[Unreleased]: https://github.com/suorcd/openbao-plugin-secrets-nebula/compare/v2.10.1...HEAD
+[v2.10.1]: https://github.com/suorcd/openbao-plugin-secrets-nebula/compare/v2.10.0...v2.10.1
+[v2.10.0]: https://github.com/suorcd/openbao-plugin-secrets-nebula/compare/v2.0.5...v2.10.0
+[v2.0.5]: https://github.com/suorcd/openbao-plugin-secrets-nebula/compare/v2.0.4...v2.0.5
+[v2.0.4]: https://github.com/suorcd/openbao-plugin-secrets-nebula/compare/v2.0.3...v2.0.4
+[v2.0.3]: https://github.com/suorcd/openbao-plugin-secrets-nebula/compare/v2.0.2...v2.0.3
+[v2.0.2]: https://github.com/suorcd/openbao-plugin-secrets-nebula/compare/v2.0.1...v2.0.2
+[v2.0.1]: https://github.com/suorcd/openbao-plugin-secrets-nebula/compare/v2.0.0...v2.0.1
+[v2.0.0]: https://github.com/suorcd/openbao-plugin-secrets-nebula/compare/v1.0.1...v2.0.0
+[1.0.1]: https://github.com/suorcd/openbao-plugin-secrets-nebula/releases/tag/v1.0.1
+[1.0.0]: https://github.com/suorcd/openbao-plugin-secrets-nebula/releases/tag/v1.0.0

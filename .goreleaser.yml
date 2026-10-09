@@ -55,9 +55,9 @@ release:
     3. Register the plugin with OpenBao:
     ```shell
     SHA256=$(sha256sum openbao-plugin-secrets-nebula | cut -d' ' -f1)
-    bao write sys/plugins/catalog/secret/bao-plugin-secrets-nebula sha256=$SHA256 command="openbao-plugin-secrets-nebula"
+    bao plugin register -sha256=$SHA256 -command="openbao-plugin-secrets-nebula" secret openbao-plugin-secrets-nebula
     ```
 
   # Footer template for GitHub release
   footer: |
-    **Full Changelog**: https://github.com/mkrauser/openbao-plugin-secrets-nebula/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/suorcd/openbao-plugin-secrets-nebula/compare/{{ .PreviousTag }}...{{ .Tag }}

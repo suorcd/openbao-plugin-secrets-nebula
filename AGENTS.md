@@ -3,7 +3,7 @@
 ## Quick commands
 
 ```shell
-nix develop                           # dev shell (Go 1.25, goreleaser, golangci-lint)
+nix develop                           # dev shell (Go 1.27, goreleaser, golangci-lint)
 nix build                             # binary → result/bin/
 
 go build -buildvcs=false ./...        # build (VCS stamping fails in detached worktrees)
@@ -14,15 +14,19 @@ make build                            # → bao/plugins/bao-plugin-secrets-nebul
 make fmt                              # go fmt on all packages
 ```
 
-Note: there is NO `make test` target. README is wrong.
+Note: there is no `make test` target; run `go test -buildvcs=false ./...` (as the README shows).
 
 ## Go version
 
-**1.25** (go.mod, CI). `.goversion` says 1.23.4 — ignore it, it's stale.
+**1.27** (go.mod). `.goversion` pins the patch release (1.27.2) and is read by the release workflow via `go-version-file`.
 
 ## Module path
 
 `go.mod` declares `github.com/mkrauser/openbao-plugin-secrets-nebula`. All source imports use this path. Do not change without updating go.mod.
+
+## Commits
+
+- Agent-assisted commits carry an `Assisted-by:` trailer naming the tool and model that made the edit, e.g. `Assisted-by: opencode (deepseek-v4.1-flash)`.
 
 ## Architecture
 
