@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Bumped `slackhq/nebula` to v1.12.0; only the `cert` package is imported, so the v1.12 embedder breaking changes do not apply and no source changes were needed. Nebula now rejects empty names or empty-string groups when signing; the plugin already enforces non-empty names and drops empty groups
-- Bumped `golang.org/x/crypto` to v0.59.0 and refreshed the transitive modules required by Nebula v1.12.0 (`x/net`, `x/sys`, `x/text`, `gvisor`, `miekg/dns`, Prometheus clients, ...)
+- Bumped `golang.org/x/crypto` to v0.59.0, which also raised the indirect `x/net` (v0.62, up from v0.60), `x/sys`, and `x/text` modules; no other transitive modules in `go.mod` changed
 - Raised the `go.mod` directive to 1.27.3 (Nebula v1.12.0's minimum) and `.goversion` to 1.27.4
 - Updated flake inputs and the Nixpkgs pin so the Nix build uses Go 1.27.3; regenerated `vendorHash`
 - OpenBao `api/v2` and `sdk/v2` stay at v2.7.1: the upstream v2.7.2 server release has not published Go module tags yet
