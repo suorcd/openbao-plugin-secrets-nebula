@@ -2,7 +2,7 @@ openapi: 3.1.1
 info:
   title: OpenBao Nebula Secrets Plugin API
   description: A secrets engine plugin for OpenBao/Vault that manages Slack Nebula certificates.
-  version: 2.10.1
+  version: 2.10.2
 servers:
   - url: /v1/{mount_path}
     description: OpenBao API Server

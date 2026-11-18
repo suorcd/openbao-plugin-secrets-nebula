@@ -23,7 +23,7 @@
 
           openbao-plugin-secrets-nebula =
             let
-              version = "2.10.1";
+              version = "2.10.2";
             in
             pkgs.buildGo127Module {
               pname = "openbao-plugin-secrets-nebula";
@@ -45,7 +45,7 @@
               # Nix requires the vendor hash to guarantee reproducibility.
               # Leave this as fakeHash for the first build. It will fail and
               # give you the real hash, which you will paste here.
-              vendorHash = "sha256-69vxgXHFPtkiWxUH8yjmWEs3U3+p+QKNKf4RAzRLSm0=";
+              vendorHash = "sha256-fNUKcgPt+AcX5lXRxJw/nBjdUSOv1KW+SOBwmRf83hU=";
 
               meta = with pkgs.lib; {
                 description = "OpenBao Secrets Engine for Nebula PKI";
