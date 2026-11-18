@@ -18,7 +18,7 @@ Note: there is no `make test` target; run `go test -buildvcs=false ./...` (as th
 
 ## Go version
 
-**1.27** (go.mod). `.goversion` pins the patch release (1.27.2) and is read by the release workflow via `go-version-file`.
+**1.27** (go.mod, minimum 1.27.3). `.goversion` pins the patch release (1.27.4) and is read by the release workflow via `go-version-file`.
 
 ## Module path
 

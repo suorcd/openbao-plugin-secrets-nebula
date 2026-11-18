@@ -7,10 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v2.10.2] - 2026-11-18
+
 ### Added
 - CI workflow (`test.yml`) running on push to `feature/main-v2-dev` and on pull requests: `go mod tidy -diff`, build, vet, test, `goreleaser check`, plus a `nix build` job that guards the flake `vendorHash`
 
 ### Changed
+- Bumped `slackhq/nebula` to v1.12.0; only the `cert` package is imported, so the v1.12 embedder breaking changes do not apply and no source changes were needed. Nebula now rejects empty names or empty-string groups when signing; the plugin already enforces non-empty names and drops empty groups
+- Bumped `golang.org/x/crypto` to v0.59.0 and refreshed the transitive modules required by Nebula v1.12.0 (`x/net`, `x/sys`, `x/text`, `gvisor`, `miekg/dns`, Prometheus clients, ...)
+- Raised the `go.mod` directive to 1.27.3 (Nebula v1.12.0's minimum) and `.goversion` to 1.27.4
+- Updated flake inputs and the Nixpkgs pin so the Nix build uses Go 1.27.3; regenerated `vendorHash`
+- OpenBao `api/v2` and `sdk/v2` stay at v2.7.1: the upstream v2.7.2 server release has not published Go module tags yet
 - Release notes no longer exclude `chore:` commits; that filter had left the Changelog section of published releases empty
 
 ### Fixed
@@ -136,7 +143,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added validation to prevent unintended CA overwrites
 - Added safety checks for CA rotation operations
 
-[Unreleased]: https://github.com/suorcd/openbao-plugin-secrets-nebula/compare/v2.10.1...HEAD
+[Unreleased]: https://github.com/suorcd/openbao-plugin-secrets-nebula/compare/v2.10.2...HEAD
+[v2.10.2]: https://github.com/suorcd/openbao-plugin-secrets-nebula/compare/v2.10.1...v2.10.2
 [v2.10.1]: https://github.com/suorcd/openbao-plugin-secrets-nebula/compare/v2.10.0...v2.10.1
 [v2.10.0]: https://github.com/suorcd/openbao-plugin-secrets-nebula/compare/v2.0.5...v2.10.0
 [v2.0.5]: https://github.com/suorcd/openbao-plugin-secrets-nebula/compare/v2.0.4...v2.0.5
